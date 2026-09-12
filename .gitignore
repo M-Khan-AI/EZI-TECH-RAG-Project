@@ -1,9 +1,6 @@
 venv/
 __pycache__/
 *.pyc
-data/customer_support_tickets.csv
-data/tickets.index
-data/ticket_chunks.pkl
 .env
 .DS_Store
 .vscode/
