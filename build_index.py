@@ -53,14 +53,23 @@ Support Answer:
 # -----------------------------
 
 def chunk_text(text, chunk_size=120, overlap=30):
+    """Split text into overlapping word-based chunks."""
+
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be greater than 0")
+
+    if overlap < 0:
+        raise ValueError("overlap cannot be negative")
+
+    if overlap >= chunk_size:
+        raise ValueError("overlap must be smaller than chunk_size")
+
     words = text.split()
 
     chunks = []
-
     start = 0
 
     while start < len(words):
-
         end = start + chunk_size
 
         chunk = " ".join(words[start:end])
@@ -71,7 +80,6 @@ def chunk_text(text, chunk_size=120, overlap=30):
         start += chunk_size - overlap
 
     return chunks
-
 
 # -----------------------------
 # Build chunks
