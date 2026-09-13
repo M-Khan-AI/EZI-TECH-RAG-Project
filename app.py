@@ -84,6 +84,10 @@ if st.button("Search"):
             "Retrieved Evidence"
         )
 
+        st.success(
+            f"Retrieved {len(results)} relevant support ticket chunks."
+        )
+
         st.write(
             "These are the exact chunks retrieved "
             "from the customer-support dataset."
