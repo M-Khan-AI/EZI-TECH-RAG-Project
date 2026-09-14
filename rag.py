@@ -45,10 +45,10 @@ def retrieve(question, top_k=TOP_K):
 
     question_embedding = question_embedding.astype("float32")
 
-    # Normalize
+    # Normalize embedding for cosine similarity
     faiss.normalize_L2(question_embedding)
 
-    # Search FAISS
+    # Search FAISS index
     scores, indices = index.search(
         question_embedding,
         top_k
@@ -58,8 +58,11 @@ def retrieve(question, top_k=TOP_K):
 
     for score, idx in zip(scores[0], indices[0]):
 
-        result = chunks[idx].copy()
+        # Make sure the FAISS index is valid
+        if idx < 0 or idx >= len(chunks):
+            continue
 
+        result = chunks[idx].copy()
         result["score"] = float(score)
 
         results.append(result)
@@ -68,34 +71,107 @@ def retrieve(question, top_k=TOP_K):
 
 
 # ==========================================
-# Simple grounded answer
+# Generate grounded answer
 # ==========================================
 
 def generate_answer(question, retrieved_chunks):
 
     if not retrieved_chunks:
-        return "I could not find relevant information in the support tickets."
+        return (
+            "I could not find relevant information "
+            "in the support tickets."
+        )
 
-    # Use the highest-ranked retrieved chunk
-    best_chunk = retrieved_chunks[0]["text"]
+    # Collect support answers from all retrieved chunks
+    support_answers = []
 
-    # Try to extract the support answer
-    if "Support Answer:" in best_chunk:
+    for chunk in retrieved_chunks:
 
-        answer = best_chunk.split(
-            "Support Answer:",
-            1
-        )[1].strip()
+        text = chunk["text"]
 
-        if answer:
-            return answer
+        if "Support Answer:" in text:
 
-    # If there is no explicit support answer,
-    # return the retrieved information itself.
+            answer = text.split(
+                "Support Answer:",
+                1
+            )[1].strip()
+
+            if answer:
+                support_answers.append(answer)
+
+    # Remove duplicate answers while preserving order
+    unique_answers = []
+
+    for answer in support_answers:
+
+        if answer not in unique_answers:
+            unique_answers.append(answer)
+
+    # Return information from all retrieved chunks
+    if unique_answers:
+
+        return "\n\n".join(
+            unique_answers
+        )
+
+    # Fallback if no explicit support answer exists
+    combined_information = []
+
+    for number, chunk in enumerate(
+        retrieved_chunks,
+        start=1
+    ):
+
+        combined_information.append(
+            f"Chunk {number}:\n{chunk['text']}"
+        )
+
     return (
         "The retrieved support information says:\n\n"
-        + best_chunk
+        + "\n\n".join(combined_information)
     )
+
+
+# ==========================================
+# Display retrieved chunks
+# ==========================================
+
+def display_retrieved_chunks(retrieved_chunks):
+
+    print("\n")
+    print("=" * 80)
+    print("RETRIEVED CHUNKS")
+    print("=" * 80)
+
+    if not retrieved_chunks:
+
+        print("\nNo relevant chunks found.")
+        return
+
+    for number, result in enumerate(
+        retrieved_chunks,
+        start=1
+    ):
+
+        print(
+            f"\n--- Chunk {number} ---"
+        )
+
+        print(
+            f"Similarity: {result['score']:.4f}"
+        )
+
+        print(
+            f"Ticket ID: {result['ticket_id']}"
+        )
+
+        print(
+            f"Chunk ID: {result['chunk_id']}"
+        )
+
+        print("\nEXACT CHUNK:")
+
+        print(result["text"])
 
 
 # ==========================================
@@ -119,8 +195,10 @@ if __name__ == "__main__":
 
         print(question)
 
+        # Retrieve top 3 FAISS chunks
         retrieved = retrieve(question)
 
+        # Generate answer using retrieved information
         answer = generate_answer(
             question,
             retrieved
@@ -133,32 +211,7 @@ if __name__ == "__main__":
 
         print(answer)
 
-        print("\n")
-        print("=" * 80)
-        print("RETRIEVED CHUNKS")
-        print("=" * 80)
-
-        for number, result in enumerate(
-            retrieved,
-            start=1
-        ):
-
-            print(
-                f"\n--- Chunk {number} ---"
-            )
-
-            print(
-                f"Similarity: {result['score']:.4f}"
-            )
-
-            print(
-                f"Ticket ID: {result['ticket_id']}"
-            )
-
-            print(
-                f"Chunk ID: {result['chunk_id']}"
-            )
-
-            print("\nEXACT CHUNK:")
-
-            print(result["text"])
+        # Display all 3 retrieved chunks
+        display_retrieved_chunks(
+            retrieved
+        )
