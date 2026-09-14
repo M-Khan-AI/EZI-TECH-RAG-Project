@@ -1,6 +1,11 @@
+import os
 import pandas as pd
 
 file_path = "data/customer_support_tickets.csv"
+
+if not os.path.exists(file_path):
+    print("Dataset file not found:", file_path)
+    exit()
 
 df = pd.read_csv(file_path)
 
