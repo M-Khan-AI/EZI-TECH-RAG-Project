@@ -1,40 +1,89 @@
 # EZITECH Customer Support RAG
 
-A retrieval-augmented question-answering system built over a real customer-support ticket dataset. Given a question, the system retrieves the most relevant ticket chunks with FAISS + sentence embeddings, then answers **only using what was retrieved** — no free-form generation from a language model.
+A retrieval-augmented question-answering system built over a customer-support ticket dataset.
+Given a user's question, the system retrieves the **top 3 most relevant ticket chunks using FAISS and sentence embeddings**, then extracts a grounded support answer from the retrieved information.
+The system does **not** use a large language model to generate the final answer. This keeps the responses grounded in the original support-ticket data and makes the results easier to inspect and audit.
 
 ---
 
-## How it works
+## How It Works
 
-```
+```text
 customer_support_tickets.csv
-        │
-        ▼
-  build_index.py  ──► chunks tickets, embeds them, builds a FAISS index
-        │
-        ▼
-   data/tickets.index        (FAISS vector index)
-   data/ticket_chunks.pkl    (chunk text + metadata)
-        │
-        ▼
-      rag.py       ──► retrieve(question) + generate_answer(question, chunks)
-        │
-        ▼
-      app.py       ──► Streamlit UI: ask a question, see the answer
-                        AND the exact chunks that produced it
+            │
+            ▼
+     inspect_data.py
+            │
+            ▼
+      build_index.py
+            │
+            ├── Split tickets into chunks
+            ├── Generate embeddings
+            └── Build FAISS index
+            │
+            ▼
+    data/tickets.index
+    data/ticket_chunks.pkl
+            │
+            ▼
+          rag.py
+            │
+            ├── Convert question to embedding
+            ├── Search FAISS
+            ├── Retrieve top 3 chunks
+            └── Extract support answer
+            │
+            ▼
+          app.py
+            │
+            ▼
+      Streamlit Web Interface
 ```
 
-There is no LLM call in the answer step. `generate_answer()` pulls the `Support Answer:` section straight out of the top-ranked retrieved chunk. This keeps the system fully grounded and auditable — every word in the answer can be traced back to a specific ticket and chunk.
+The complete retrieval pipeline is:
+
+```text
+User Question
+      ↓
+Sentence Transformer
+      ↓
+Question Embedding
+      ↓
+FAISS Similarity Search
+      ↓
+Top 3 Relevant Chunks
+      ↓
+Highest-Ranked Chunk
+      ↓
+Support Answer Extraction
+      ↓
+Grounded Answer
+```
 
 ---
 
-## Chunking strategy
+## Main Features
 
-**Approach: per-ticket text, split into overlapping fixed-size word windows (120 words, 30-word overlap).**
+* Customer-support ticket retrieval
+* Text chunking with overlapping word windows
+* Sentence-transformer embeddings
+* FAISS vector similarity search
+* Top 3 relevant chunk retrieval
+* Grounded answer extraction
+* Exact retrieved evidence display
+* Ticket and chunk metadata
+* Streamlit web interface
+* No LLM required for answer generation
 
-Each ticket is first flattened into a single text block:
+---
 
-```
+## Chunking Strategy
+
+### Approach
+
+Each ticket is first converted into a single text block:
+
+```text
 Subject: <subject>
 
 Customer:
@@ -44,50 +93,207 @@ Support Answer:
 <answer>
 ```
 
-That block is then split into chunks of **120 words**, sliding forward by **90 words** each time (a 30-word / 25% overlap). This was chosen deliberately over the two extremes:
+The ticket text is then divided into overlapping fixed-size word windows.
 
-- **One giant chunk per ticket** was rejected because tickets vary a lot in length. Long tickets would dominate the embedding with unrelated context (e.g., a rambling customer message diluting the actual support answer), which hurts retrieval precision — the embedding for the whole ticket stops looking like the embedding for the specific question being asked.
-- **One sentence per chunk** was rejected because a single sentence pulled out of a ticket often loses the context needed to answer a question (e.g., "Please try that." means nothing without the preceding sentence). Supporting answers in this dataset are frequently 2–4 sentences of connected instructions, so sentence-level splitting would fragment the exact information a question is trying to retrieve.
-
-**120 words** was chosen because it's roughly the length of a short paragraph — long enough to keep a subject, a customer's issue, and a support answer together in most tickets, short enough that a chunk stays topically focused and doesn't blur multiple issues together. The **30-word overlap** protects against the failure case where the useful sentence lands right at a chunk boundary and would otherwise be split across two chunks and lose meaning in both.
-
-This is implemented in `build_index.py`:
+The current configuration is:
 
 ```python
 CHUNK_SIZE = 120
 OVERLAP = 30
 ```
 
-Chunks are embedded with `all-MiniLM-L6-v2` (via `sentence-transformers`), L2-normalized, and indexed with `faiss.IndexFlatIP` so that inner product search is equivalent to cosine similarity.
+This means:
+
+* Each chunk contains up to 120 words.
+* Consecutive chunks overlap by 30 words.
+* The chunk window moves forward by 90 words.
+
+### Why 120 Words?
+
+A complete ticket can sometimes contain a large amount of text. Using one entire ticket as a single embedding can introduce unrelated information and reduce retrieval precision.
+
+On the other hand, splitting every sentence into its own chunk can remove important context.
+
+For example:
+
+```text
+Please try that.
+```
+
+has very little meaning without the surrounding conversation.
+
+A 120-word window provides a balance between:
+
+* Context preservation
+* Retrieval precision
+* Embedding efficiency
+* Topical focus
+
+The 30-word overlap helps prevent important information from being lost when it falls near a chunk boundary.
 
 ---
 
-## Project structure
+## Embedding Model
 
-| File | Purpose |
-|---|---|
-| `inspect_data.py` | Quick look at the raw CSV — row count, columns, sample rows |
-| `build_index.py` | Chunks all tickets, embeds them, builds and saves the FAISS index |
-| `rag.py` | Core retrieval (`retrieve`) and answer extraction (`generate_answer`) logic; also runnable as a standalone test script |
-| `app.py` | Streamlit front-end: ask a question, see the answer and the retrieved evidence |
-| `data/customer_support_tickets.csv` | Source dataset (not committed — see `.gitignore`) |
-| `data/tickets.index` | Generated FAISS index (build artifact) |
-| `data/ticket_chunks.pkl` | Generated chunk text + metadata (build artifact) |
+The project uses:
+
+```text
+all-MiniLM-L6-v2
+```
+
+through the `sentence-transformers` library.
+
+The model converts both:
+
+* Customer-support chunks
+* User questions
+
+into numerical vector representations.
+
+These vectors allow the system to compare the semantic similarity between a question and the stored support information.
 
 ---
 
-## Setup
+## FAISS Retrieval
 
-```bash
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+The project uses FAISS for vector similarity search.
 
-pip install -r requirements.txt
+The embeddings are L2-normalized before searching the index.
+
+The FAISS index uses:
+
+```python
+faiss.IndexFlatIP
 ```
 
-`requirements.txt` should include:
+Because the vectors are normalized, inner-product similarity corresponds to cosine similarity.
 
+For every question, the system retrieves:
+
+```text
+TOP_K = 3
 ```
+
+Therefore, each query returns the **3 highest-ranked chunks** from the FAISS index.
+
+Each retrieved chunk contains:
+
+* Similarity score
+* Ticket ID
+* Chunk ID
+* Exact chunk text
+
+---
+
+## Answer Generation
+
+The current system does not call an LLM to generate an answer.
+
+Instead, `rag.py` extracts the support answer directly from the highest-ranked retrieved chunk.
+
+A chunk can contain information such as:
+
+```text
+Subject: Password Reset
+
+Customer:
+I forgot my password and cannot access my account.
+
+Support Answer:
+Please use the password reset option on the login page.
+Follow the instructions sent to your registered email address.
+```
+
+The system looks for:
+
+```text
+Support Answer:
+```
+
+and extracts the text that follows it.
+
+This makes the answer directly traceable to the original support-ticket data.
+
+---
+
+## Retrieved Evidence
+
+Although the system retrieves 3 chunks, the current answer-generation process uses the **highest-ranked chunk** to produce the final answer.
+
+All 3 retrieved chunks are still displayed so that retrieval quality can be inspected.
+
+For example:
+
+```text
+--- Chunk 1 ---
+Similarity: 0.8234
+Ticket ID: 123
+Chunk ID: 123_1
+
+EXACT CHUNK:
+...
+
+--- Chunk 2 ---
+Similarity: 0.7912
+Ticket ID: 456
+Chunk ID: 456_1
+
+EXACT CHUNK:
+...
+
+--- Chunk 3 ---
+Similarity: 0.7543
+Ticket ID: 789
+Chunk ID: 789_1
+
+EXACT CHUNK:
+...
+```
+
+The exact scores and retrieved chunks depend on the dataset and the generated FAISS index.
+
+---
+
+## Project Structure
+
+```text
+customer_support_rag/
+│
+├── data/
+│   ├── customer_support_tickets.csv
+│   ├── tickets.index
+│   └── ticket_chunks.pkl
+│
+├── inspect_data.py
+├── build_index.py
+├── rag.py
+├── app.py
+├── requirements.txt
+├── README.md
+└── .gitignore
+```
+
+### File Descriptions
+
+| File                                | Purpose                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| `inspect_data.py`                   | Inspects the CSV by displaying the number of tickets, column names, and first five rows    |
+| `build_index.py`                    | Chunks tickets, generates embeddings, builds the FAISS index, and saves the retrieval data |
+| `rag.py`                            | Performs question embedding, FAISS retrieval, answer extraction, and retrieval testing     |
+| `app.py`                            | Provides the Streamlit user interface                                                      |
+| `requirements.txt`                  | Contains the Python dependencies                                                           |
+| `README.md`                         | Contains project documentation                                                             |
+| `data/customer_support_tickets.csv` | Source customer-support dataset                                                            |
+| `data/tickets.index`                | Generated FAISS vector index                                                               |
+| `data/ticket_chunks.pkl`            | Generated chunks and metadata                                                              |
+
+---
+
+## Requirements
+
+The project uses the following Python packages:
+
+```text
 streamlit
 pandas
 numpy
@@ -95,79 +301,276 @@ faiss-cpu
 sentence-transformers
 ```
 
-Place your dataset at `data/customer_support_tickets.csv`. It's expected to have (at minimum) `subject`, `body`, and `answer` columns — check with:
+These dependencies are listed in:
+
+```text
+requirements.txt
+```
+
+---
+
+## Setup
+
+### 1. Create a Virtual Environment
+
+Windows:
+
+```bash
+python -m venv venv
+```
+
+Linux/macOS:
+
+```bash
+python3 -m venv venv
+```
+
+### 2. Activate the Virtual Environment
+
+Windows:
+
+```bash
+venv\Scripts\activate
+```
+
+Linux/macOS:
+
+```bash
+source venv/bin/activate
+```
+
+### 3. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## Dataset
+
+Place the customer-support dataset at:
+
+```text
+data/customer_support_tickets.csv
+```
+
+The dataset should contain, at minimum, the following columns:
+
+```text
+subject
+body
+answer
+```
+
+---
+
+## Inspect the Dataset
+
+Before building the vector index, run:
 
 ```bash
 python inspect_data.py
 ```
 
+The script displays:
+
+```text
+Number of tickets: ...
+
+Column names:
+[...]
+
+First 5 tickets:
+...
+```
+
+This provides a quick way to verify that the CSV file has been loaded correctly.
+
 ---
 
-## Build the index
+## Build the FAISS Index
+
+After verifying the dataset, run:
 
 ```bash
 python build_index.py
 ```
 
-This reads the CSV, creates the word-window chunks described above, embeds them, and writes `data/tickets.index` and `data/ticket_chunks.pkl`. Re-run this any time the dataset changes.
+This performs the following steps:
+
+```text
+CSV Dataset
+     ↓
+Ticket Text Preparation
+     ↓
+120-Word Chunking
+     ↓
+30-Word Overlap
+     ↓
+Sentence Embeddings
+     ↓
+L2 Normalization
+     ↓
+FAISS Index
+```
+
+The generated files are:
+
+```text
+data/tickets.index
+data/ticket_chunks.pkl
+```
+
+Run `build_index.py` again whenever the source dataset changes.
 
 ---
 
-## Verify retrieval (sample questions + exact chunks)
+## Test the RAG Retrieval
 
-`rag.py` doubles as a retrieval sanity check. Running it directly retrieves the top chunks for three sample questions and prints the **exact chunk text** used, so retrieval quality can be checked independently of the final answer:
+The `rag.py` file can be executed directly to test the retrieval system:
 
 ```bash
 python rag.py
 ```
 
-### Sample results
+The script tests sample questions such as:
 
-> Run `python rag.py` after building the index and paste the console output below. Each entry should show the question, the similarity score, the ticket/chunk ID, and the exact retrieved chunk text — this is what proves the retrieval step is working, not just the final answer.
+```text
+How can I reset my password?
 
-**Question 1: "How can I reset my password?"**
-- Similarity score: `<fill in>`
-- Ticket ID / Chunk ID: `<fill in>`
-- Exact retrieved chunk:
-  ```
-  <paste exact chunk text here>
-  ```
-- Answer produced: `<paste answer here>`
+What should I do if I cannot login?
 
-**Question 2: "What should I do if I cannot login?"**
-- Similarity score: `<fill in>`
-- Ticket ID / Chunk ID: `<fill in>`
-- Exact retrieved chunk:
-  ```
-  <paste exact chunk text here>
-  ```
-- Answer produced: `<paste answer here>`
+How can I get help with my invoice?
+```
 
-**Question 3: "How can I get help with my invoice?"**
-- Similarity score: `<fill in>`
-- Ticket ID / Chunk ID: `<fill in>`
-- Exact retrieved chunk:
-  ```
-  <paste exact chunk text here>
-  ```
-- Answer produced: `<paste answer here>`
+For every question, the program displays:
+
+1. The question
+2. The grounded answer
+3. The top 3 retrieved chunks
+4. Similarity scores
+5. Ticket IDs
+6. Chunk IDs
+7. Exact retrieved chunk text
+
+A typical output structure is:
+
+```text
+================================================================================
+QUESTION
+================================================================================
+
+How can I reset my password?
+
+================================================================================
+ANSWER
+================================================================================
+
+[Grounded support answer]
+
+================================================================================
+RETRIEVED CHUNKS
+================================================================================
+
+--- Chunk 1 ---
+Similarity: 0.xxxx
+Ticket ID: ...
+Chunk ID: ...
+
+EXACT CHUNK:
+...
+
+--- Chunk 2 ---
+Similarity: 0.xxxx
+Ticket ID: ...
+Chunk ID: ...
+
+EXACT CHUNK:
+...
+
+--- Chunk 3 ---
+Similarity: 0.xxxx
+Ticket ID: ...
+Chunk ID: ...
+
+EXACT CHUNK:
+...
+```
 
 ---
 
-## Run the app
+## Run the Streamlit Application
+
+Start the web application with:
 
 ```bash
 streamlit run app.py
 ```
 
-Enter a question, hit **Search**, and the UI shows:
-1. **Answer** — the grounded answer extracted from the top-ranked chunk.
-2. **Retrieved Evidence** — every retrieved chunk in an expander, with its similarity score, ticket ID, chunk ID, and the exact chunk text, so any answer can be checked against its source.
+The Streamlit interface allows the user to enter a customer-support question.
+
+After submitting a question, the application displays:
+
+### Answer
+
+The grounded support answer extracted from the highest-ranked retrieved chunk.
+
+### Retrieved Evidence
+
+The application also displays the retrieved chunks with:
+
+* Similarity score
+* Ticket ID
+* Chunk ID
+* Exact chunk text
+
+This makes it possible to inspect the evidence behind the answer.
 
 ---
 
-## Design notes / limitations
+## Retrieval Configuration
 
-- Answers are extracted verbatim from the top chunk's `Support Answer:` section — there's no paraphrasing or synthesis across multiple chunks, which keeps answers fully traceable but means the system can't currently combine information from more than one ticket.
-- Retrieval uses cosine similarity (via normalized inner product) over `all-MiniLM-L6-v2` embeddings — a small, fast model well-suited to short support-ticket text, at some cost to nuance versus larger embedding models.
-- `top_k=3` is used both in `app.py` and as the default in `retrieve()`; increase this if you want more candidate evidence per query.
+The number of retrieved chunks is controlled in `rag.py`:
+
+```python
+TOP_K = 3
+```
+
+The default behavior is therefore:
+
+```text
+Question
+   ↓
+FAISS Search
+   ↓
+Top 3 Chunks
+```
+
+Increasing this value retrieves more candidate chunks.
+
+For example:
+
+```python
+TOP_K = 5
+```
+
+would retrieve five chunks instead of three.
+
+---
+
+## Design Decisions
+
+### Why FAISS?
+
+FAISS provides efficient vector similarity search and is well suited for retrieving semantically related text from an embedding index.
+
+### Why Sentence Transformers?
+
+`all-MiniLM-L6-v2` is a lightweight sentence-embedding model that provides a practical balance between speed and semantic retrieval quality.
+
+### Why Use Chunking?
+
+Chunking prevents long tickets from becoming a single overly broad embedding.
+
+Smaller chunks allow FAISS to identify more focused pieces of information that are relevant to a particular quest
