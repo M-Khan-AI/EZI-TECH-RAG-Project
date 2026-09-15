@@ -194,25 +194,33 @@ Instead, `rag.py` extracts the support answer directly from the highest-ranked r
 A chunk can contain information such as:
 
 ```text
-Subject: Password Reset
+Subject: how can i reset my password?
+Exact Chunk 1:be helpful if you could provide us with details on the security protocols and the process for the password resets that have been initiated. Please let's discuss this as soon as possible, and you can call <tel_num> at your earliest convenience.
 
-Customer:
-I forgot my password and cannot access my account.
+Chunk 2: policies and, if necessary, contact us at <tel_num> for guidance to promptly address this issue. Support Answer: Dear <name>, we confirm receipt of your email regarding the unauthorized access to confidential medical data and appreciate the prompt actions taken to reset passwords and improve security policies. We recommend enhancing the strength of your password security policies and implementing supplementary security measures. Please carry out a thorough review of your current security policies and, if needed, contact us at <tel_num> for advice to resolve this matter promptly. Thank you.
 
-Support Answer:
-Please use the password reset option on the login page.
-Follow the instructions sent to your registered email address.
-```
+Chunk 3: of the initial security scans. Please provide us with the reports from the initial security scans and the password resets. We will schedule a call at <tel_num> to discuss the next steps to resolve this issue as soon as possible. Referencing your account number <acc_num>.
 
-The system looks for:
 
-```text
-Support Answer:
-```
+Subject: What should I do if I cannot login?
 
-and extracts the text that follows it.
+Exact Chunks
 
-This makes the answer directly traceable to the original support-ticket data.
+Chunk 1: matter and look forward to your assistance. Support Answer: We will investigate the login failure issue. Please provide your account number and a good time to call at <tel_num> for further discussion. Our technical team will work to resolve the issue as soon as possible.
+
+Chunk 2: this matter and look forward to your response. Support Answer: We will investigate the login failure issue. Please provide your account number and a good time to call at <tel_num> for further discussion. Our technical team will work on resolving the issue as soon as possible.
+
+Chunk 3: Subject: Reported Login Problems Today Customer: The platform encountered occasional login difficulties. Support Answer: <name>, we apologize for the inconvenience caused by the occasional login failures on the platform. Our technical team is currently investigating the issue and is working to resolve it as soon as possible. Please provide any details about the error message you received; this information may help us identify the root cause of the problem. If it's convenient, we can schedule a call to discuss the issue further: <tel_num>. Please let us know a suitable time, and we are happy to assist you regarding <acc_num>.
+
+Subject: How can I get help with my invoice?
+
+Exact Chunks
+
+Chunk 1: to proceed? I appreciate your prompt assistance. Looking forward to resolving this issue. Support Answer: Dear [Name], I have taken note of the concern regarding the monthly invoice issue. Please provide me with additional details to assist in resolving this, such as the date and amount in question for the upcoming bill, as well as your account number <acc_num>. Once I have the necessary information, I will investigate and find a solution. If further details are needed, please call the number <tel_num>. Thank you, and I look forward to resolving this issue.
+
+Chunk 2: review the account statements and invoices. Please provide the account number and the specific dates of the invoice in question. For further discussion, I would prefer to call at your convenience. Please let me know a suitable time to reach you at <tel_num>.
+
+Chunk 3: Subject: Assistance with Unexpected Invoice Customer: Received an unexpected invoice with additional charges. This might have occurred due to a billing error or miscommunication. So far, we have reviewed the contract and requested clarification from the billing department. We would appreciate it if you could look into the matter and provide a revised invoice with an explanation of the additional charges. Support Answer: Dear [name], we are writing this email to acknowledge your concern regarding the unexpected invoice with additional charges. We understand your concern and would be happy to assist in resolving this matter. To better understand the issue, could you please provide your account number, invoice number, and any specific questions you have? We will review your account
 
 ---
 
