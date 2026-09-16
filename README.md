@@ -396,7 +396,6 @@ Column names:
 
 First 5 tickets:
 ...
-```
 
 This provides a quick way to verify that the CSV file has been loaded correctly.
 
