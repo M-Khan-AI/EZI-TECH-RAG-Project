@@ -83,6 +83,57 @@ Grounded Answer
 
 Each ticket is first converted into a single text block:
 
+
+## Chunking Strategy 
+ 
+### Approaches Considered 
+## Chunking Strategy
+
+### Approaches Considered
+
+There are several possible ways to divide customer-support tickets into chunks. This project considered the following approaches:
+
+#### 1. One Giant Chunk
+
+The entire ticket can be stored as a single chunk.
+
+For example:
+
+```text
+Complete Ticket
+      ↓
+
+ Subject + Customer + Answer = One Chunk           
+```
+
+This approach keeps all of the ticket's information together. However, a long ticket may contain different topics or pieces of information. Embedding the entire ticket as one chunk can make retrieval less focused and may reduce retrieval precision.
+
+#### 2. One Sentence Per Chunk
+
+Another approach is to split the ticket into individual sentences, with each sentence becoming a separate chunk.
+
+For example:
+
+```text
+Sentence 1 → Chunk 1
+Sentence 2 → Chunk 2
+Sentence 3 → Chunk 3
+```
+
+This approach creates small and focused chunks, but individual sentences may not contain enough context to understand the customer's issue or the support response.
+
+For example:
+
+```text
+Please try that.
+```
+
+This sentence has very little meaning without the surrounding conversation.
+
+#### 3. Fixed-Size Overlapping Word Chunks — Used in This Project
+
+This project uses fixed-size overlapping word windows. Each ticket is first converted into a single text block:
+
 ```text
 Subject: <subject>
 
@@ -108,30 +159,25 @@ This means:
 * Consecutive chunks overlap by 30 words.
 * The chunk window moves forward by 90 words.
 
-### Why 120 Words?
-
-A complete ticket can sometimes contain a large amount of text. Using one entire ticket as a single embedding can introduce unrelated information and reduce retrieval precision.
-
-On the other hand, splitting every sentence into its own chunk can remove important context.
-
 For example:
 
 ```text
-Please try that.
+Chunk 1 → Words 1–30
+Chunk 2 → Words 31–60
+Chunk 3 → Words 61-90
 ```
 
-has very little meaning without the surrounding conversation.
+### Why This Approach Was Selected
 
-A 120-word window provides a balance between:
+The fixed-size overlapping approach provides a balance between the two alternative approaches.
 
-* Context preservation
-* Retrieval precision
-* Embedding efficiency
-* Topical focus
+* Unlike one giant chunk, it divides long tickets into smaller and more focused pieces.
+* Unlike one sentence per chunk, it preserves more surrounding context.
+* The 30-word overlap helps reduce the chance of important information being lost at chunk boundaries.
+* The 120-word size provides enough context for meaningful semantic retrieval while keeping chunks reasonably focused.
 
-The 30-word overlap helps prevent important information from being lost when it falls near a chunk boundary.
+Therefore, the project uses **120-word chunks with a 30-word overlap** for the FAISS retrieval system.
 
----
 
 ## Embedding Model
 
@@ -581,4 +627,4 @@ FAISS provides efficient vector similarity search and is well suited for retriev
 
 Chunking prevents long tickets from becoming a single overly broad embedding.
 
-Smaller chunks allow FAISS to identify more focused pieces of information that are relevant to a particular quest
+Smaller chunks allow FAISS to identify more focused pieces of information that are relevant to a particular question
