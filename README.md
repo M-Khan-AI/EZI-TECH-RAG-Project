@@ -359,47 +359,6 @@ These dependencies are listed in:
 
 ```text
 requirements.txt
-```
-
----
-
-## Setup
-
-### 1. Create a Virtual Environment
-
-Windows:
-
-```bash
-python -m venv venv
-```
-
-Linux/macOS:
-
-```bash
-python3 -m venv venv
-```
-
-### 2. Activate the Virtual Environment
-
-Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-Linux/macOS:
-
-```bash
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
----
 
 ## Dataset
 
@@ -610,9 +569,7 @@ TOP_K = 5
 ```
 
 would retrieve five chunks instead of three.
-
 ---
-
 ## Design Decisions
 
 ### Why FAISS?
